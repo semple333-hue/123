@@ -153,7 +153,7 @@ def write_csv(rows: List[Dict[str, object]], output: str) -> None:
             writer.writerow(row_with_date)
 
 
-def parse_args(argv: List[str]) -> argparse.Namespace:
+def parse_args(argv: List[str]) -> Tuple[argparse.Namespace, List[str]]:
     parser = argparse.ArgumentParser(
         description="Collect normalized P/E values for MOEX index constituents.",
     )
@@ -172,11 +172,11 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
         action="store_true",
         help="Write CSV headers even if data collection fails",
     )
-    return parser.parse_args(argv)
+    return parser.parse_known_args(argv)
 
 
 def main(argv: List[str]) -> int:
-    args = parse_args(argv)
+    args, _unknown = parse_args(argv)
     output = args.output
     default_output = f"moex_normalized_pe_{DEFAULT_INDEX.lower()}.csv"
     if output == default_output and args.index.lower() != DEFAULT_INDEX.lower():
