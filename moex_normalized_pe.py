@@ -6,6 +6,7 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+from datetime import date
 from typing import Dict, Iterable, List, Optional, Tuple
 
 BASE_URL = "https://iss.moex.com/iss"
@@ -141,11 +142,15 @@ def collect_normalized_pe(
 
 
 def write_csv(rows: List[Dict[str, object]], output: str) -> None:
-    fieldnames = ["secid", "shortname", "isin", "board", "normalized_pe"]
+    fieldnames = ["secid", "shortname", "isin", "board", "normalized_pe", "as_of"]
     with open(output, "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerows(rows)
+        today = date.today().isoformat()
+        for row in rows:
+            row_with_date = dict(row)
+            row_with_date["as_of"] = today
+            writer.writerow(row_with_date)
 
 
 def parse_args(argv: List[str]) -> argparse.Namespace:
@@ -157,15 +162,34 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument("--market", default=DEFAULT_MARKET, help="MOEX market (default: shares)")
     parser.add_argument("--board", default=DEFAULT_BOARD, help="Trading board (default: TQBR)")
     parser.add_argument("--batch", type=int, default=50, help="Batch size for ISS requests")
-    parser.add_argument("--output", default="moex_normalized_pe.csv", help="Output CSV path")
+    parser.add_argument(
+        "--output",
+        default=f"moex_normalized_pe_{DEFAULT_INDEX.lower()}.csv",
+        help="Output CSV path",
+    )
+    parser.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Write CSV headers even if data collection fails",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: List[str]) -> int:
     args = parse_args(argv)
-    rows = collect_normalized_pe(args.index, args.engine, args.market, args.board, args.batch)
-    write_csv(rows, args.output)
-    print(f"Saved {len(rows)} rows to {args.output}")
+    output = args.output
+    default_output = f"moex_normalized_pe_{DEFAULT_INDEX.lower()}.csv"
+    if output == default_output and args.index.lower() != DEFAULT_INDEX.lower():
+        output = f"moex_normalized_pe_{args.index.lower()}.csv"
+    try:
+        rows = collect_normalized_pe(args.index, args.engine, args.market, args.board, args.batch)
+    except MoexError as exc:
+        if not args.allow_empty:
+            raise
+        rows = []
+        print(f"Warning: {exc}. Writing empty CSV to {output}.")
+    write_csv(rows, output)
+    print(f"Saved {len(rows)} rows to {output}")
     return 0
 
 
